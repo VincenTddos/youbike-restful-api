@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.env
+# 完整即時快照由 youbike_source.py 產生，不納入版本控制
+data/youbike_stations.csv
+data/*.tmp
