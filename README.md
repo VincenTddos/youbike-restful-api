@@ -5,9 +5,9 @@
 使用 Python + Flask 實作 RESTful API Server，並提供 Swagger UI 線上文件、Python API Client 與網頁 Client。
 
 - GitHub：<https://github.com/VincenTddos/youbike-restful-api>
-- **線上展示（GitHub Pages）**：<https://vincenttddos.github.io/youbike-restful-api/>
-  - 3D 城市視圖：<https://vincenttddos.github.io/youbike-restful-api/client/map.html>
-  - API 文件（Swagger UI）：<https://vincenttddos.github.io/youbike-restful-api/docs/>
+- **線上展示（GitHub Pages）**：<https://vincentddos.github.io/youbike-restful-api/>
+  - 3D 城市視圖：<https://vincentddos.github.io/youbike-restful-api/client/map.html>
+  - API 文件（Swagger UI）：<https://vincentddos.github.io/youbike-restful-api/docs/>
   - GitHub Pages 無法執行 Flask，網頁為展示模式，讀取 repo 內的 Open Data 資料檔；即時資料與 CRUD 請在本機啟動 Server。
 - 本機 API 文件：啟動 Server 後開啟 <http://127.0.0.1:5000/docs>（Swagger UI，可 Try it out）
 
