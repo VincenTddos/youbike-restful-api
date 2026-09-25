@@ -18,17 +18,53 @@ import argparse
 import logging
 import os
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from repository import (ApiError, DictStationRepository, StationRepository,
                         ValidationError)
 from sync_service import SyncService
-from youbike_source import FULL_CSV, default_csv_path, load_csv
+from youbike_source import LIVE_CSV, default_csv_path, load_csv
 
 # 臺灣本島 + 離島的經緯度範圍，用來擋掉明顯錯誤的座標
 LAT_RANGE = (21.0, 26.5)
 LNG_RANGE = (118.0, 123.0)
+
+DOCS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'docs')
+
+# Swagger UI：讀取 docs/openapi.yaml 產生線上 API 文件
+SWAGGER_HTML = '''<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouBike API Docs</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui.css"
+      integrity="sha384-wxLW6kwyHktdDGr6Pv1zgm/VGJh99lfUbzSn6HNHBENZlCN7W602k9VkGdxuFvPn" crossorigin="anonymous">
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"
+        integrity="sha384-wmyclcVGX/WhUkdkATwhaK1X1JtiNrr2EoYJ+diV3vj4v6OC5yCeSu+yW13SYJep" crossorigin="anonymous"></script>
+<script>
+  window.ui = SwaggerUIBundle({
+    url: 'openapi.yaml',
+    dom_id: '#swagger-ui',
+    deepLinking: true,
+    tryItOutEnabled: true,
+    // 「Try it out」送到目前這台 Server，而不是 spec 裡寫死的 localhost:5000
+    requestInterceptor: (req) => {
+      const u = new URL(req.url, location.href);
+      if (u.hostname === 'localhost' && u.port === '5000' && location.port !== '5000') {
+        u.host = location.host;
+        req.url = u.toString();
+      }
+      return req;
+    },
+  });
+</script>
+</body>
+</html>'''
 
 
 # ==============================================================
@@ -183,6 +219,7 @@ def create_app(repo: StationRepository, sync: SyncService = None, csv_path=None)
             'data_source': 'https://data.gov.tw/dataset/137993',
             'csv_loaded': os.path.basename(csv_path) if csv_path else None,
             'stations': repo.count(),
+            'docs': '/docs',
             'endpoints': {
                 'GET /stations': '查詢站點 (area, q, min_rent, min_return, active, sort, limit, offset)',
                 'GET /stations/<sno>': '查詢單一站點',
@@ -195,8 +232,19 @@ def create_app(repo: StationRepository, sync: SyncService = None, csv_path=None)
                 'GET /stats': '統計 (總覽、各區、快沒車、已滿位)',
                 'GET /sync/status': '背景同步狀態',
                 'POST /sync': '立即同步一次官方資料',
+                'GET /docs': 'Swagger UI 線上 API 文件',
+                'GET /openapi.yaml': 'OpenAPI 3.0 規格檔',
             },
         })
+
+    # ---------- API 文件 (Swagger UI) ----------
+    @app.get('/docs')
+    def swagger_ui():
+        return SWAGGER_HTML, 200, {'Content-Type': 'text/html; charset=utf-8'}
+
+    @app.get('/openapi.yaml')
+    def openapi_spec():
+        return send_from_directory(DOCS_DIR, 'openapi.yaml', mimetype='application/yaml')
 
     # ---------- 查詢 ----------
     @app.get('/stations')
@@ -302,9 +350,10 @@ def main():
     csv_path = args.csv or default_csv_path()
     stations = load_csv(csv_path)
     log.info('匯入 CSV: %s (%d 站)', csv_path, len(stations))
+    log.info('API 文件: http://%s:%d/docs', args.host, args.port)
     repo = DictStationRepository(stations)
 
-    sync = SyncService(repo, interval=max(args.interval, 10), snapshot_path=FULL_CSV, logger=log)
+    sync = SyncService(repo, interval=max(args.interval, 10), snapshot_path=LIVE_CSV, logger=log)
     if not args.no_sync:
         sync.start()
         log.info('背景同步已啟動，每 %d 秒更新一次', sync.interval)

@@ -1,0 +1,447 @@
+openapi: 3.0.3
+info:
+  title: 臺北市 YouBike 2.0 RESTful API
+  version: 1.1.0
+  description: |
+    以政府資料開放平臺「[YouBike2.0 臺北市公共自行車即時資訊](https://data.gov.tw/dataset/137993)」為資料來源的 RESTful API。
+
+    - 啟動時匯入 `data/youbike_stations.csv`（官方 JSON 下載後轉存的單一 CSV 檔），並在背景每 60 秒同步官方即時資料。
+    - 主要 Resource 為 **Station（站點）**，提供完整 CRUD；另有附近站點、行政區、統計、同步等唯讀／操作端點。
+    - 所有錯誤皆回傳 `{"result": "error", "message": "..."}`。
+    - 經 API 新增的站點 `source` 為 `custom`，不會被背景同步覆蓋；官方站點被修改後，下次同步會以即時資料為準。
+  contact:
+    name: GitHub
+    url: https://github.com/VincenTddos/youbike-restful-api
+servers:
+  - url: http://localhost:5000
+    description: 本機開發（python rest_server.py）
+tags:
+  - name: Stations
+    description: 站點 CRUD 與查詢
+  - name: Areas & Stats
+    description: 行政區與統計（由站點資料即時計算）
+  - name: Sync
+    description: 官方即時資料同步
+  - name: Meta
+    description: API 資訊
+
+paths:
+  /:
+    get:
+      tags: [Meta]
+      summary: API 資訊與端點列表
+      operationId: getIndex
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string, example: Taipei YouBike 2.0 RESTful API }
+                  data_source: { type: string, example: 'https://data.gov.tw/dataset/137993' }
+                  csv_loaded: { type: string, nullable: true, example: youbike_stations.csv }
+                  stations: { type: integer, example: 1807 }
+                  docs: { type: string, example: /docs }
+                  endpoints:
+                    type: object
+                    additionalProperties: { type: string }
+
+  /stations:
+    get:
+      tags: [Stations]
+      summary: 查詢站點（篩選、排序、分頁）
+      operationId: listStations
+      parameters:
+        - { name: area, in: query, description: 行政區（完全比對）, schema: { type: string }, example: 大安區 }
+        - { name: q, in: query, description: 站名或地址關鍵字（不分大小寫）, schema: { type: string }, example: 捷運 }
+        - { name: min_rent, in: query, description: 可借車輛至少幾台, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: min_return, in: query, description: 可還空位至少幾格, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: active, in: query, description: 是否營運中, schema: { type: boolean } }
+        - name: sort
+          in: query
+          description: 排序欄位，前面加 `-` 代表遞減
+          schema:
+            type: string
+            default: sno
+            enum: [sno, -sno, name, -name, area, -area, total, -total, available_rent, -available_rent, available_return, -available_return]
+        - { name: limit, in: query, description: 每頁筆數, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+        - { name: offset, in: query, description: 略過前幾筆, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        '200':
+          description: 查詢結果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StationPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      tags: [Stations]
+      summary: 新增站點
+      operationId: createStation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StationInput' }
+            example:
+              sno: '900000001'
+              name: 北商大測試站
+              area: 中正區
+              address: 濟南路一段321號
+              lat: 25.0421
+              lng: 121.5256
+              total: 20
+              available_rent: 5
+              available_return: 15
+      responses:
+        '201':
+          description: 新增成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StationResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /stations/nearby:
+    get:
+      tags: [Stations]
+      summary: 附近站點（依距離排序，只含營運中站點）
+      operationId: nearbyStations
+      parameters:
+        - { name: lat, in: query, required: true, description: 緯度, schema: { type: number, minimum: 21.0, maximum: 26.5 }, example: 25.0478 }
+        - { name: lng, in: query, required: true, description: 經度, schema: { type: number, minimum: 118.0, maximum: 123.0 }, example: 121.517 }
+        - { name: r, in: query, description: 半徑（公尺）, schema: { type: integer, minimum: 50, maximum: 5000, default: 500 } }
+        - { name: limit, in: query, description: 最多幾筆, schema: { type: integer, minimum: 1, maximum: 50, default: 10 } }
+        - name: need
+          in: query
+          description: rent = 只要有車可借；return = 只要有位可還
+          schema: { type: string, enum: [rent, return] }
+      responses:
+        '200':
+          description: 附近站點
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  center:
+                    type: object
+                    properties:
+                      lat: { type: number }
+                      lng: { type: number }
+                  radius_m: { type: integer, example: 500 }
+                  need: { type: string, nullable: true, enum: [rent, return] }
+                  count: { type: integer }
+                  items:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Station'
+                        - type: object
+                          properties:
+                            distance_m: { type: integer, description: 距離（公尺）, example: 128 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /stations/{sno}:
+    parameters:
+      - $ref: '#/components/parameters/Sno'
+    get:
+      tags: [Stations]
+      summary: 查詢單一站點
+      operationId: getStation
+      responses:
+        '200':
+          description: 站點資料
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Station' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Stations]
+      summary: 整筆改換站點（body 中的 sno 若不同即為改編號）
+      operationId: replaceStation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/StationInput'
+              description: 必填欄位同新增；sno 可省略（沿用 URL 的 sno）
+      responses:
+        '200':
+          description: 改換成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StationResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    patch:
+      tags: [Stations]
+      summary: 部份更新站點（不可修改 sno）
+      operationId: updateStation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StationPatch' }
+            example: { available_rent: 3, available_return: 17 }
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StationResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Stations]
+      summary: 刪除站點
+      operationId: deleteStation
+      responses:
+        '200':
+          description: 刪除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, example: deleted successfully }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /areas:
+    get:
+      tags: [Areas & Stats]
+      summary: 行政區列表與站點數
+      operationId: listAreas
+      responses:
+        '200':
+          description: 行政區列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    area: { type: string, example: 大安區 }
+                    stations: { type: integer, example: 213 }
+
+  /stats:
+    get:
+      tags: [Areas & Stats]
+      summary: 統計（全市總覽、各區、快沒車、已滿位）
+      operationId: getStats
+      parameters:
+        - { name: low, in: query, description: 「快沒車」門檻（可借 ≤ low）, schema: { type: integer, minimum: 0, maximum: 50, default: 2 } }
+      responses:
+        '200':
+          description: 統計結果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Stats' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /sync/status:
+    get:
+      tags: [Sync]
+      summary: 背景同步狀態
+      operationId: getSyncStatus
+      responses:
+        '200':
+          description: 同步狀態
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SyncStatus' }
+
+  /sync:
+    post:
+      tags: [Sync]
+      summary: 立即同步一次官方即時資料
+      operationId: syncNow
+      responses:
+        '200':
+          description: 同步成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, example: synced successfully }
+                  data: { $ref: '#/components/schemas/SyncResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '502':
+          description: 官方資料下載失敗
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  parameters:
+    Sno:
+      name: sno
+      in: path
+      required: true
+      description: 站點編號
+      schema: { type: string }
+      example: '500101001'
+
+  responses:
+    BadRequest:
+      description: 輸入錯誤（缺欄位、型別錯誤、超出範圍等）
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { result: error, message: 'missing fields: lat, lng' }
+    NotFound:
+      description: 找不到站點
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { result: error, message: "station not found: '999'" }
+    Conflict:
+      description: 站點編號重複
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { result: error, message: "station already exists: '900000001'" }
+
+  schemas:
+    Station:
+      type: object
+      properties:
+        sno: { type: string, description: 站點編號, example: '500101001' }
+        name: { type: string, description: 站名（已去除 YouBike2.0_ 前綴）, example: 捷運科技大樓站 }
+        area: { type: string, description: 行政區, example: 大安區 }
+        address: { type: string, description: 地址, example: 復興南路二段235號前 }
+        lat: { type: number, description: 緯度, example: 25.02605 }
+        lng: { type: number, description: 經度, example: 121.5436 }
+        total: { type: integer, description: 總車格, example: 28 }
+        available_rent: { type: integer, description: 可借車輛, example: 7 }
+        available_return: { type: integer, description: 可還空位, example: 21 }
+        active: { type: boolean, description: 是否營運中, example: true }
+        updated_at: { type: string, description: 資料更新時間, example: '2026-09-25 21:37:02' }
+        source: { type: string, enum: [official, custom], description: official = 官方資料；custom = 經 API 新增 }
+
+    StationInput:
+      type: object
+      required: [sno, name, area, lat, lng, total, available_rent, available_return]
+      description: available_rent 與 available_return 皆不可超過 total
+      properties:
+        sno: { type: string, minLength: 1, example: '900000001' }
+        name: { type: string, minLength: 1, example: 北商大測試站 }
+        area: { type: string, minLength: 1, example: 中正區 }
+        address: { type: string, default: '', example: 濟南路一段321號 }
+        lat: { type: number, minimum: 21.0, maximum: 26.5, example: 25.0421 }
+        lng: { type: number, minimum: 118.0, maximum: 123.0, example: 121.5256 }
+        total: { type: integer, minimum: 0, example: 20 }
+        available_rent: { type: integer, minimum: 0, example: 5 }
+        available_return: { type: integer, minimum: 0, example: 15 }
+        active: { type: boolean, default: true }
+
+    StationPatch:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      description: 只送出要修改的欄位；不可包含 sno
+      properties:
+        name: { type: string, minLength: 1 }
+        area: { type: string, minLength: 1 }
+        address: { type: string }
+        lat: { type: number, minimum: 21.0, maximum: 26.5 }
+        lng: { type: number, minimum: 118.0, maximum: 123.0 }
+        total: { type: integer, minimum: 0 }
+        available_rent: { type: integer, minimum: 0 }
+        available_return: { type: integer, minimum: 0 }
+        active: { type: boolean }
+
+    StationResult:
+      type: object
+      properties:
+        result: { type: string, example: inserted successfully }
+        data: { $ref: '#/components/schemas/Station' }
+
+    StationPage:
+      type: object
+      properties:
+        total: { type: integer, description: 符合條件的總筆數, example: 213 }
+        count: { type: integer, description: 本頁筆數, example: 20 }
+        limit: { type: integer, example: 20 }
+        offset: { type: integer, example: 0 }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Station' }
+
+    StationBrief:
+      type: object
+      properties:
+        sno: { type: string }
+        name: { type: string }
+        area: { type: string }
+        total: { type: integer }
+        available_rent: { type: integer }
+        available_return: { type: integer }
+
+    Stats:
+      type: object
+      properties:
+        summary:
+          type: object
+          properties:
+            stations: { type: integer, example: 1807 }
+            active_stations: { type: integer, example: 1780 }
+            total_docks: { type: integer, example: 50669 }
+            available_rent: { type: integer, example: 16146 }
+            available_return: { type: integer, example: 33430 }
+            low_bike_stations: { type: integer, example: 310 }
+            full_stations: { type: integer, example: 23 }
+        by_area:
+          type: array
+          items:
+            type: object
+            properties:
+              area: { type: string }
+              stations: { type: integer }
+              total: { type: integer }
+              available_rent: { type: integer }
+              available_return: { type: integer }
+              rent_ratio: { type: number, description: 可借 / 總車格 }
+        low_bike_threshold: { type: integer, example: 2 }
+        low_bike:
+          type: array
+          items: { $ref: '#/components/schemas/StationBrief' }
+        full:
+          type: array
+          items: { $ref: '#/components/schemas/StationBrief' }
+
+    SyncResult:
+      type: object
+      properties:
+        inserted: { type: integer }
+        updated: { type: integer }
+        skipped_custom: { type: integer, description: 因為是自建站點而略過的筆數 }
+        fetched: { type: integer }
+        elapsed_ms: { type: integer }
+
+    SyncStatus:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        interval_sec: { type: integer }
+        last_attempt: { type: string, nullable: true }
+        last_success: { type: string, nullable: true }
+        last_error: { type: string, nullable: true }
+        last_result:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/SyncResult'
+        success_count: { type: integer }
+        error_count: { type: integer }
+
+    Error:
+      type: object
+      properties:
+        result: { type: string, example: error }
+        message: { type: string }

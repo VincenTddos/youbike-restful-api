@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 venv/
 .env
-# 完整即時快照由 youbike_source.py 產生，不納入版本控制
-data/youbike_stations.csv
+# Server 背景同步寫出的即時快照，每分鐘變動，不納入版本控制
+# (Open Data 資料檔 data/youbike_stations.csv 要納入)
+data/youbike_live.csv
 data/*.tmp

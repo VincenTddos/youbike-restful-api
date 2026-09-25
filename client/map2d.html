@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<!--
+map2d.html ~ 臺北市 YouBike 2.0 平面地圖（Leaflet）
+  - Leaflet + OpenStreetMap/CARTO 圖磚（免 API Key），每站可一鍵開啟 Google Maps 導航
+  - 資料來自本專案 RESTful API：/stations、/stations/nearby、/stats、/sync/status
+  - API Host 可用網址參數指定：map2d.html?api=http://localhost:5001/
+-->
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>YouBike 平面地圖</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha384-c6Rcwz4e4CITMbu/NBmnNS8yN2sC3cUElMEMfP3vqqKFp7GOYaaBBCqmaWBjmkjb" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css" integrity="sha384-uIZNAcoEHVWMk8LrCSX95DJk6FQzH6zG00LQC9BykRY1UKKpkDzDhbDLYQ1Ho3mI" crossorigin="anonymous">
+<link rel="stylesheet" href="map2d.css">
+</head>
+<body>
+<div id="map" aria-label="YouBike 站點地圖"></div>
+
+<!-- ===== 左側面板 ===== -->
+<aside id="panel">
+  <button id="sheet-handle" class="sheet-handle" aria-label="展開/收合面板"><span></span></button>
+
+  <header class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><circle cx="6" cy="16" r="4"/><circle cx="18" cy="16" r="4"/><path d="M6 16l4-8h5l3 8M10 8l2 8h-6M13 5h3"/></svg>
+    </div>
+    <div>
+      <h1>YouBike 2.0 即時地圖</h1>
+      <p class="live"><span class="dot" id="live-dot"></span><span id="live-text">連線中…</span></p>
+    </div>
+  </header>
+
+  <!-- 模式切換 -->
+  <div class="segment" role="tablist" aria-label="模式">
+    <button class="seg active" data-mode="rent" role="tab" aria-selected="true"><svg class="ic" viewBox="0 0 24 24"><circle cx="5.5" cy="17" r="3.5"/><circle cx="18.5" cy="17" r="3.5"/><path d="M5.5 17l4-8h5l4 8M9.5 9l3 8M14 5h2.5l-2 4"/></svg> 我要借車</button>
+    <button class="seg" data-mode="return" role="tab" aria-selected="false"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg> 我要還車</button>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpis">
+    <div class="kpi hero">
+      <span class="k-label" id="kpi-main-label">全市可借車輛</span>
+      <span class="k-value" id="kpi-main">–</span>
+      <div class="k-bar"><i id="kpi-bar"></i></div>
+      <span class="k-sub" id="kpi-main-sub">–</span>
+    </div>
+    <div class="kpi"><span class="k-label">營運站點</span><span class="k-value sm" id="kpi-stations">–</span></div>
+    <div class="kpi warn"><span class="k-label">快沒車 ≤2</span><span class="k-value sm" id="kpi-low">–</span></div>
+    <div class="kpi danger"><span class="k-label">已滿位</span><span class="k-value sm" id="kpi-full">–</span></div>
+  </div>
+
+  <!-- 搜尋 + 篩選 -->
+  <div class="search">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <input id="search" type="search" placeholder="搜尋站名或地址，例如：台北101、公館" autocomplete="off">
+    <ul id="search-results" class="results" hidden></ul>
+  </div>
+  <div class="filters">
+    <select id="area" aria-label="行政區"><option value="">全部行政區</option></select>
+    <label class="switch"><input type="checkbox" id="only-available"><span></span><em id="only-label">只看有車</em></label>
+  </div>
+
+  <!-- 分頁 -->
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="nearby">附近站點</button>
+    <button class="tab" data-tab="areas">行政區排行</button>
+  </nav>
+
+  <section class="tab-body" id="tab-nearby">
+    <div class="nearby-tools">
+      <button id="btn-locate" class="btn primary"><svg class="ic" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg> 用我的位置</button>
+      <button id="btn-pick" class="btn"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg> 在地圖上選點</button>
+    </div>
+    <div class="radius">
+      <label for="radius">搜尋半徑 <b id="radius-val">500 m</b></label>
+      <input id="radius" type="range" min="200" max="2000" step="100" value="500">
+    </div>
+    <ol id="nearby-list" class="station-list">
+      <li class="empty">按「用我的位置」或在地圖上選點，<br>找出最近、最方便的站。</li>
+    </ol>
+  </section>
+
+  <section class="tab-body" id="tab-areas" hidden>
+    <p class="hint" id="area-hint">長條 = 可借車輛佔總車格比例，點一下可聚焦該區。</p>
+    <ol id="area-list" class="area-list"></ol>
+  </section>
+
+  <footer class="panel-foot">
+    <details>
+      <summary>設定</summary>
+      <label for="host">API Host</label>
+      <div class="host-row"><input id="host"><button id="host-save" class="btn">套用</button></div>
+      <a href="map.html" class="link" id="to-3d">切換到 3D 城市視圖</a>
+      <a href="index.html" class="link">開啟 API 管理介面（CRUD）</a>
+    </details>
+    <span class="src">資料：臺北市政府 YouBike2.0 開放資料</span>
+  </footer>
+</aside>
+
+<!-- ===== 地圖右上控制 ===== -->
+<div class="map-ctrl">
+  <button id="ctl-locate" title="定位到我的位置" aria-label="定位">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+  </button>
+  <button id="ctl-refresh" title="立即更新" aria-label="立即更新">
+    <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg>
+    <svg class="ring" viewBox="0 0 36 36" aria-hidden="true"><circle id="countdown" cx="18" cy="18" r="16"/></svg>
+  </button>
+  <button id="ctl-theme" title="切換深色/淺色地圖" aria-label="切換主題">
+    <svg viewBox="0 0 24 24"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/></svg>
+  </button>
+</div>
+
+<!-- ===== 圖例 ===== -->
+<div class="legend" id="legend">
+  <b id="legend-title">可借車輛</b>
+  <span><i class="lv-ok"></i>充足 ≥5</span>
+  <span><i class="lv-low"></i>偏少 1–4</span>
+  <span><i class="lv-empty"></i>沒有 0</span>
+  <span><i class="lv-off"></i>暫停營運</span>
+</div>
+
+<div class="pick-banner" id="pick-banner" hidden>點地圖任一處，搜尋該點附近站點 <button id="pick-cancel">取消</button></div>
+
+<!-- ===== 站點詳情卡 ===== -->
+<article id="detail" class="detail" hidden>
+  <button class="close" id="detail-close" aria-label="關閉">×</button>
+  <div class="d-head">
+    <span class="d-area" id="d-area"></span>
+    <span class="d-state" id="d-state"></span>
+  </div>
+  <h2 id="d-name"></h2>
+  <p class="d-addr" id="d-addr"></p>
+  <div class="d-nums">
+    <div class="d-num rent"><span class="n" id="d-rent">0</span><span class="l">可借車輛</span></div>
+    <div class="d-gauge"><svg viewBox="0 0 42 42"><circle class="bg" cx="21" cy="21" r="16"/><circle class="fg" id="d-gauge" cx="21" cy="21" r="16"/></svg><span id="d-pct"></span></div>
+    <div class="d-num ret"><span class="n" id="d-return">0</span><span class="l">可還空位</span></div>
+  </div>
+  <div class="d-bar"><i id="d-bar-rent"></i><i id="d-bar-ret"></i></div>
+  <p class="d-meta" id="d-meta"></p>
+  <div class="d-actions">
+    <a id="d-nav" class="btn primary" target="_blank" rel="noopener"><svg class="ic" viewBox="0 0 24 24"><path d="M3 11l18-8-8 18-2-8-8-2z"/></svg> Google 導航</a>
+    <a id="d-gmap" class="btn" target="_blank" rel="noopener">Google 地圖</a>
+    <button id="d-near" class="btn">附近其他站</button>
+  </div>
+</article>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha384-NElt3Op+9NBMCYaef5HxeJmU4Xeard/Lku8ek6hoPTvYkQPh3zLIrJP7KiRocsxO" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js" integrity="sha384-SIh+qcEBNMda8tT+rx66aCBuWtVYMVzRABqhK4eeQh4pjDHoRdVx8nYU4LQ5eGzI" crossorigin="anonymous"></script>
+<script src="map2d.js"></script>
+</body>
+</html>

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<!--
+map.html ~ 臺北市 YouBike 2.0 3D 城市視圖（three.js）
+  - 每個站點是一根發光柱體：高度 = 可借車輛（或可還空位），顏色 = 充足/偏少/沒有
+  - 地面為 Esri 底圖圖磚貼圖；UnrealBloom 後製發光
+  - 資料來自本專案 RESTful API：/stations、/stations/nearby、/stats、/sync/status
+  - API Host 可用網址參數指定：map.html?api=http://localhost:5001/
+-->
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>YouBike 3D 城市</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="map3d.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  },
+  "integrity": {
+      "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js": "sha384-qOubuRxWZ0I7rXTjcuhcKNHKvPM7q0ztN8/82sJnxnyKS0OXTeB5FsIcysc2T9EY",
+      "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/controls/MapControls.js": "sha384-SKFjMr4FoVnClryESnoja9y6ewZneRjUxMHFpmo8GvVg+D8vLEi2fqhRlLBCOBaq",
+      "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/controls/OrbitControls.js": "sha384-aJoe4qqS/DgF2jh9njAuvA6QIveJYoCuYOfYjdFY8P3eawzmc9bEQ40jq2TvOyuP",
+      "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/postprocessing/EffectComposer.js": "sha384-L+Ns9skCAqjab7aG8LH5VLknBCoENW7p37sOj39jnITwlWZFabWc29JwzgYf6ygy",
+      "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/postprocessing/MaskPass.js": "sha384-SDM80tiGflO8UDV/QzR/mASjcc/+wF7KfRVFNHJUIPcTctwoPI8GoWVTlccZw7V4",
+      "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/postprocessing/OutputPass.js": "sha384-pAQ55aG4oXjA92n2goVLMWU14Ik/bNUs29MfxOM6meGyGzTJoFm7WxEU0D0SqsNI",
+      "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/postprocessing/Pass.js": "sha384-gSqIFh8vMmp1veyOysIS3KPVUl/A5JPefYvW4b89OeYeW0bwkrjN7qcC1h0XJK/K",
+      "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/postprocessing/RenderPass.js": "sha384-JBzMcXwTgF2e9tw3AU4+jg+nVDdl7hTHlT0C5qZVa/1DUUe/KIm4L3e2jorIH28/",
+      "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/postprocessing/ShaderPass.js": "sha384-zetU6HhR/vTtgSvnS9DE+GQPZhVT/ZOSLa/1+DSM6rkM9hvBgQWr9bCEosZt93ch",
+      "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/postprocessing/UnrealBloomPass.js": "sha384-NLbvCtTvm5zjFCKW1mFWUjcnFLVOn258z3hKOAoYCXJ1DtQO54I+x5LPquFbIig+",
+      "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/shaders/CopyShader.js": "sha384-kzVlcj2amFaRNIWZ5zE0PmIN+QTNWWvrgKk31S8N/7w0nf7Qq3xqxHRLbD2UPPSl",
+      "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/shaders/LuminosityHighPassShader.js": "sha384-a6qrIDfNt1Ss7Z4VtgMalz9gq8H/Up3lSSf1Agc4HRaDMvNd9eP9k7DckAv5JxQF",
+      "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/shaders/OutputShader.js": "sha384-CdpJL3xlIkjJQAbzgyazSoOx+/oBcwUCsBVSU25SKy8/PEdYEn24U+4mnmx3R4YX"
+  }
+}
+</script>
+</head>
+<body class="mode-rent">
+
+<!-- ===== 圖示 (SVG sprite) ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-bike" viewBox="0 0 24 24"><circle cx="5.5" cy="17" r="3.5"/><circle cx="18.5" cy="17" r="3.5"/><path d="M5.5 17l4-8h5l4 8M9.5 9l3 8M14 5h2.5l-2 4"/></symbol>
+  <symbol id="i-park" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></symbol>
+  <symbol id="i-nav" viewBox="0 0 24 24"><path d="M3 11l18-8-8 18-2-8-8-2z"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></symbol>
+  <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></symbol>
+  <symbol id="i-orbit" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10" ry="4.5"/><circle cx="12" cy="12" r="2.5"/><path d="M19 5.5l2 2-2.5 1"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5 9.5V20h5v-6h4v6h5V9.5"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-walk" viewBox="0 0 24 24"><circle cx="13" cy="4" r="2"/><path d="M9 21l2-6 3 3v4M7 12l2-4 4-1 3 4 3 1M11 15l1-5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-dock" viewBox="0 0 24 24"><path d="M4 20V9M9 20V6M14 20V9M19 20V4M2 20h20"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+</svg>
+
+<div id="stage"></div>
+<div id="labels" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+
+<!-- ===== 開場載入 ===== -->
+<div id="boot">
+  <div class="boot-core">
+    <div class="boot-ring"><svg><use href="#i-bike"/></svg></div>
+    <div class="boot-title">YOUBIKE <b>2.0</b> · TAIPEI</div>
+    <div class="boot-bar"><i id="boot-bar"></i></div>
+    <div class="boot-msg" id="boot-msg">初始化 3D 引擎…</div>
+  </div>
+</div>
+
+<!-- ===== 左側面板 ===== -->
+<aside id="panel">
+  <button id="sheet-handle" class="sheet-handle" aria-label="展開/收合面板"><span></span></button>
+
+  <header class="brand">
+    <div class="logo"><svg><use href="#i-bike"/></svg></div>
+    <div class="brand-txt">
+      <h1>YouBike 2.0 <span>City Pulse</span></h1>
+      <p class="live"><span class="dot" id="live-dot"></span><span id="live-text">連線中…</span></p>
+    </div>
+  </header>
+
+  <div class="segment" role="tablist" aria-label="模式">
+    <span class="seg-glider" aria-hidden="true"></span>
+    <button class="seg active" data-mode="rent" role="tab" aria-selected="true"><svg class="ic"><use href="#i-bike"/></svg>我要借車</button>
+    <button class="seg" data-mode="return" role="tab" aria-selected="false"><svg class="ic"><use href="#i-park"/></svg>我要還車</button>
+  </div>
+
+  <div class="hero">
+    <div class="hero-top">
+      <span class="k-label" id="kpi-main-label">全市可借車輛</span>
+      <span class="k-pct" id="kpi-pct">–</span>
+    </div>
+    <div class="k-value" id="kpi-main">–</div>
+    <div class="k-bar"><i id="kpi-bar"></i></div>
+    <div class="k-sub" id="kpi-main-sub">–</div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><span class="k-label">營運站點</span><span class="k-num" id="kpi-stations">–</span></div>
+    <div class="kpi warn"><span class="k-label">快沒車 ≤2</span><span class="k-num" id="kpi-low">–</span></div>
+    <div class="kpi danger"><span class="k-label">已滿位</span><span class="k-num" id="kpi-full">–</span></div>
+  </div>
+
+  <div class="search">
+    <svg class="ic"><use href="#i-search"/></svg>
+    <input id="search" type="search" placeholder="搜尋站名或地址，例如：台北101、公館" autocomplete="off">
+    <ul id="search-results" class="results" hidden></ul>
+  </div>
+  <div class="filters">
+    <select id="area" aria-label="行政區"><option value="">全部行政區</option></select>
+    <label class="switch"><input type="checkbox" id="only-available"><span></span><em id="only-label">只看有車</em></label>
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="nearby">附近站點</button>
+    <button class="tab" data-tab="areas">行政區排行</button>
+  </nav>
+
+  <section class="tab-body" id="tab-nearby">
+    <div class="nearby-tools">
+      <button id="btn-locate" class="btn primary"><svg class="ic"><use href="#i-pin"/></svg>用我的位置</button>
+      <button id="btn-pick" class="btn"><svg class="ic"><use href="#i-target"/></svg>在地圖上選點</button>
+    </div>
+    <div class="radius">
+      <label for="radius">搜尋半徑 <b id="radius-val">500 m</b></label>
+      <input id="radius" type="range" min="200" max="2000" step="100" value="500">
+    </div>
+    <ol id="nearby-list" class="station-list">
+      <li class="empty">按「用我的位置」或在地圖上選點，<br>找出最近、最方便的站。</li>
+    </ol>
+  </section>
+
+  <section class="tab-body" id="tab-areas" hidden>
+    <p class="hint" id="area-hint">長條 = 可借車輛佔總車格比例，點一下飛到該區。</p>
+    <ol id="area-list" class="area-list"></ol>
+  </section>
+
+  <footer class="panel-foot">
+    <details>
+      <summary><svg class="ic"><use href="#i-settings"/></svg>設定</summary>
+      <label for="host">API Host</label>
+      <div class="host-row"><input id="host"><button id="host-save" class="btn">套用</button></div>
+      <a href="index.html" class="link">開啟 API 管理介面（CRUD）</a>
+    </details>
+    <span class="src">資料：臺北市政府 YouBike2.0 開放資料・底圖 Esri</span>
+  </footer>
+</aside>
+
+<!-- ===== 右上控制 ===== -->
+<div class="map-ctrl">
+  <button id="ctl-locate" data-tip="定位到我的位置"><svg><use href="#i-locate"/></svg></button>
+  <button id="ctl-home" data-tip="回到全市視角"><svg><use href="#i-home"/></svg></button>
+  <button id="ctl-orbit" data-tip="環繞巡航"><svg><use href="#i-orbit"/></svg></button>
+  <button id="ctl-refresh" data-tip="立即更新">
+    <svg><use href="#i-refresh"/></svg>
+    <svg class="ring" viewBox="0 0 36 36"><circle id="countdown" cx="18" cy="18" r="16"/></svg>
+  </button>
+  <a id="ctl-2d" data-tip="切換平面地圖" href="map2d.html"><svg><use href="#i-map"/></svg></a>
+</div>
+
+<!-- ===== 圖例 ===== -->
+<div class="legend">
+  <div class="lg-head"><svg class="ic"><use href="#i-dock"/></svg><b id="legend-title">柱高 = 可借車輛</b></div>
+  <div class="lg-row"><i class="sw ok"></i>充足 ≥5</div>
+  <div class="lg-row"><i class="sw low"></i>偏少 1–4</div>
+  <div class="lg-row"><i class="sw empty"></i>沒有 0（地面紅色脈衝）</div>
+  <div class="lg-row"><i class="sw off"></i>暫停營運</div>
+  <p class="lg-tip">左鍵拖曳平移・右鍵旋轉・滾輪縮放</p>
+</div>
+
+<div class="pick-banner" id="pick-banner" hidden><svg class="ic"><use href="#i-target"/></svg>點地面任一處，搜尋該點附近站點 <button id="pick-cancel">取消</button></div>
+
+<div id="tip" class="tip" hidden></div>
+
+<!-- ===== 站點詳情卡 ===== -->
+<article id="detail" class="detail" hidden>
+  <button class="close" id="detail-close" aria-label="關閉"><svg><use href="#i-x"/></svg></button>
+  <div class="d-head">
+    <span class="d-chip" id="d-area"></span>
+    <span class="d-chip" id="d-state"></span>
+    <span class="d-chip mono" id="d-sno"></span>
+  </div>
+  <h2 id="d-name"></h2>
+  <p class="d-addr" id="d-addr"></p>
+  <div class="d-nums">
+    <div class="d-num rent"><span class="n" id="d-rent">0</span><span class="l"><svg class="ic"><use href="#i-bike"/></svg>可借車輛</span></div>
+    <div class="d-gauge"><svg viewBox="0 0 42 42"><circle class="bg" cx="21" cy="21" r="16"/><circle class="fg" id="d-gauge" cx="21" cy="21" r="16"/></svg><span id="d-pct"></span></div>
+    <div class="d-num ret"><span class="n" id="d-return">0</span><span class="l"><svg class="ic"><use href="#i-park"/></svg>可還空位</span></div>
+  </div>
+  <div class="d-bar"><i id="d-bar-rent"></i><i id="d-bar-ret"></i></div>
+  <div class="d-meta">
+    <span id="d-dist" hidden><svg class="ic"><use href="#i-walk"/></svg><b></b></span>
+    <span><svg class="ic"><use href="#i-dock"/></svg><b id="d-total"></b></span>
+    <span><svg class="ic"><use href="#i-clock"/></svg><b id="d-time"></b></span>
+  </div>
+  <div class="d-actions">
+    <a id="d-nav" class="btn primary" target="_blank" rel="noopener"><svg class="ic"><use href="#i-nav"/></svg>Google 導航</a>
+    <a id="d-gmap" class="btn" target="_blank" rel="noopener"><svg class="ic"><use href="#i-map"/></svg>Google 地圖</a>
+    <button id="d-near" class="btn"><svg class="ic"><use href="#i-target"/></svg>附近其他站</button>
+  </div>
+</article>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="map3d.js"></script>
+</body>
+</html>

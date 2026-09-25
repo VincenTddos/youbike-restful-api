@@ -11,6 +11,11 @@ youbike_source.py ~ 臺北市 YouBike 2.0 公開資料的「取得」與「轉�
 
 單獨執行本檔可下載完整快照 (約 1,800 站):
   python youbike_source.py            → data/youbike_stations.csv
+
+資料檔:
+  data/youbike_stations.csv  Open Data 下載後轉存的單一資料檔 (納入版本控制)
+  data/youbike_live.csv      Server 背景同步後寫出的最新快照 (不納入版本控制)
+  data/youbike_sample.csv    86 站範例 (測試用)
 '''
 
 import csv
@@ -24,6 +29,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 FULL_CSV = os.path.join(DATA_DIR, 'youbike_stations.csv')
 SAMPLE_CSV = os.path.join(DATA_DIR, 'youbike_sample.csv')
+LIVE_CSV = os.path.join(DATA_DIR, 'youbike_live.csv')
 
 # CSV 沿用官方欄位名稱，方便和原始資料對照
 CSV_FIELDS = ['sno', 'sna', 'sarea', 'ar', 'latitude', 'longitude', 'Quantity',
@@ -107,8 +113,11 @@ def save_csv(stations, path):
 
 
 def default_csv_path():
-    '''有完整快照就用完整快照，否則用隨附的範例檔。'''
-    return FULL_CSV if os.path.exists(FULL_CSV) else SAMPLE_CSV
+    '''優先順序: 同步後的最新快照 → Open Data 資料檔 → 範例檔。'''
+    for path in (LIVE_CSV, FULL_CSV, SAMPLE_CSV):
+        if os.path.exists(path):
+            return path
+    return SAMPLE_CSV
 
 
 if __name__ == '__main__':

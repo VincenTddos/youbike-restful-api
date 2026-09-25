@@ -230,3 +230,61 @@ def test_json_errors(client):
     assert client.put('/stations').status_code == 405
     r = client.post('/stations', data='x', content_type='text/plain')
     assert r.status_code == 400 and r.is_json
+
+
+# ---------- API 文件 (Swagger UI / OpenAPI) ----------
+def test_swagger_ui_served(client):
+    r = client.get('/docs')
+    assert r.status_code == 200 and b'swagger-ui' in r.data
+    r = client.get('/openapi.yaml')
+    assert r.status_code == 200 and b'openapi: 3.0' in r.data
+
+
+def test_openapi_covers_all_routes(client):
+    '''OpenAPI 規格必須涵蓋 Server 上每一條 API 路由 (含 Method)。'''
+    import yaml
+    spec = yaml.safe_load(client.get('/openapi.yaml').data)
+    documented = {(path, m.upper()) for path, ops in spec['paths'].items()
+                  for m in ops if m in ('get', 'post', 'put', 'patch', 'delete')}
+    app = client.application
+    actual = set()
+    for rule in app.url_map.iter_rules():
+        if rule.endpoint in ('static', 'swagger_ui', 'openapi_spec'):
+            continue
+        path = rule.rule.replace('<', '{').replace('>', '}')
+        actual |= {(path, m) for m in rule.methods - {'HEAD', 'OPTIONS'}}
+    assert actual == documented
+
+
+# ---------- Python API Client (透過真正的 HTTP) ----------
+@pytest.fixture
+def live_server(repo):
+    import threading
+    from werkzeug.serving import make_server
+    app = create_app(repo, SyncService(repo, fetcher=fake_official([OFFICIAL_ROW])))
+    server = make_server('127.0.0.1', 0, app)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    yield f'http://127.0.0.1:{server.server_port}'
+    server.shutdown()
+
+
+def test_api_client_crud(live_server):
+    from api_client import TEST_STATION, YouBikeClient
+    c = YouBikeClient(live_server)
+    sno = TEST_STATION['sno']
+    assert c.create_station(TEST_STATION).status == 201
+    assert c.get_station(sno).output['name'] == TEST_STATION['name']
+    assert c.update_station(sno, {'available_rent': 1}).output['data']['available_rent'] == 1
+    assert c.replace_station(sno, {**TEST_STATION, 'name': 'X'}).output['data']['name'] == 'X'
+    assert c.delete_station(sno).status == 200
+    assert c.get_station(sno).status == 404
+
+
+def test_api_client_demo_and_markdown(live_server):
+    from api_client import YouBikeClient, run_demo, to_markdown
+    calls = run_demo(YouBikeClient(live_server))
+    expected = [200, 200, 200, 200, 200, 200, 200, 201, 200, 200, 200, 200, 404, 400, 409, 400, 400, 200]
+    assert [c.status for c in calls] == expected
+    md = to_markdown(calls, live_server)
+    assert md.count('## ') == len(calls) and '`POST`' in md
