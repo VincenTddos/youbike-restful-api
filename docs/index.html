@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<!--
+docs/index.html ~ 靜態版 Swagger UI（GitHub Pages 用）
+  Server 啟動時的 /docs 是同一份規格；這裡的「Try it out」會送到本機 http://localhost:5000，需先執行 rest_server.py
+-->
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouBike API Docs</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui.css"
+      integrity="sha384-wxLW6kwyHktdDGr6Pv1zgm/VGJh99lfUbzSn6HNHBENZlCN7W602k9VkGdxuFvPn" crossorigin="anonymous">
+<style>
+  body { margin: 0; font-family: system-ui, "Segoe UI", "Microsoft JhengHei", sans-serif; }
+  .banner { padding: 10px 16px; background: #fff8e1; border-bottom: 1px solid #f0d58a; color: #5c4400; font-size: 14px; }
+  .banner a { color: #5c4400; }
+</style>
+</head>
+<body>
+<div class="banner">
+  靜態版 API 文件。「Try it out」會送到 <code>http://localhost:5000</code>，請先在本機執行 <code>python rest_server.py</code>。
+  <a href="../">← 回首頁</a>
+</div>
+<div id="swagger-ui"></div>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"
+        integrity="sha384-wmyclcVGX/WhUkdkATwhaK1X1JtiNrr2EoYJ+diV3vj4v6OC5yCeSu+yW13SYJep" crossorigin="anonymous"></script>
+<script>
+  window.ui = SwaggerUIBundle({ url: 'openapi.yaml', dom_id: '#swagger-ui', deepLinking: true });
+</script>
+</body>
+</html>

@@ -36,10 +36,22 @@ function defaultHost() {
 }
 let HOST = defaultHost();
 
+// 展示模式：連不到 API Server（或放在 GitHub Pages 上）時，改讀 repo 裡的 Open Data 資料檔，見 static-api.js
+const HAS_STATIC = typeof StaticApi !== 'undefined';
+let STATIC = HAS_STATIC && StaticApi.preferStatic;
+
 async function api(path) {
+  if (STATIC) return StaticApi.handle('/' + path);
   let host = HOST.trim();
   if (!host.endsWith('/')) host += '/';
-  const res = await fetch(host + path);
+  let res;
+  try {
+    res = await fetch(host + path);
+  } catch (err) {
+    if (!HAS_STATIC) throw err;
+    STATIC = true;
+    return StaticApi.handle('/' + path);
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
   return data;
@@ -707,6 +719,12 @@ const isMobile = () => window.innerWidth <= 760;
   function setLive(ok, sync) {
     $('live-dot').className = 'dot ' + (ok ? 'on' : 'err');
     if (!ok) { $('live-text').textContent = 'OFFLINE · 無法連線到 API'; return; }
+    if (sync && sync.static) {
+      $('live-dot').className = 'dot demo';
+      $('live-text').textContent = `DEMO · Open Data 快照 ${(sync.snapshot_time || '').slice(0, 16)}`;
+      if (!setLive.noted) { setLive.noted = true; toast('目前為展示模式：顯示 repo 內的 Open Data 快照（唯讀）。即時資料與 CRUD 請啟動 rest_server.py', false, 6500); }
+      return;
+    }
     const t = new Date().toLocaleTimeString('zh-TW', { hour12: false });
     $('live-text').textContent = `LIVE · 更新於 ${t}${sync && !sync.enabled ? '（未啟用同步）' : ''}`;
   }
@@ -1026,6 +1044,7 @@ const isMobile = () => window.innerWidth <= 760;
   $('sheet-handle').addEventListener('click', () => $('panel').classList.toggle('collapsed'));
   $('host').value = HOST;
   $('host-save').addEventListener('click', () => {
+    STATIC = false;
     HOST = $('host').value.trim() || 'http://localhost:5000/';
     try { localStorage.setItem('yb-host', HOST); } catch { /* 無痕模式 */ }
     state.stations = [];

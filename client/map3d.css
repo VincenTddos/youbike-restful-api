@@ -96,6 +96,7 @@ h1 span { font-weight: 500; color: var(--muted); font-size: .8rem; letter-spacin
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--off); position: relative; flex: none; }
 .dot.on { background: #2ee07a; box-shadow: 0 0 8px #2ee07a; }
 .dot.on::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid #2ee07a; animation: pulse 1.8s ease-out infinite; }
+.dot.demo { background: #a78bfa; box-shadow: 0 0 8px #a78bfa; }
 .dot.err { background: var(--empty); box-shadow: 0 0 8px var(--empty); }
 @keyframes pulse { from { opacity: .9; transform: scale(.4); } to { opacity: 0; transform: scale(1.7); } }
 

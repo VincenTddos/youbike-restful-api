@@ -5,7 +5,11 @@
 使用 Python + Flask 實作 RESTful API Server，並提供 Swagger UI 線上文件、Python API Client 與網頁 Client。
 
 - GitHub：<https://github.com/VincenTddos/youbike-restful-api>
-- 線上 API 文件：啟動 Server 後開啟 <http://127.0.0.1:5000/docs>（Swagger UI）
+- **線上展示（GitHub Pages）**：<https://vincenttddos.github.io/youbike-restful-api/>
+  - 3D 城市視圖：<https://vincenttddos.github.io/youbike-restful-api/client/map.html>
+  - API 文件（Swagger UI）：<https://vincenttddos.github.io/youbike-restful-api/docs/>
+  - GitHub Pages 無法執行 Flask，網頁為展示模式，讀取 repo 內的 Open Data 資料檔；即時資料與 CRUD 請在本機啟動 Server。
+- 本機 API 文件：啟動 Server 後開啟 <http://127.0.0.1:5000/docs>（Swagger UI，可 Try it out）
 
 ## 作業繳交項目對照
 
@@ -97,6 +101,7 @@ Server 不在預設位址時加上 `--base-url http://127.0.0.1:5001`。
 | `client/map2d.html` | 平面地圖版（Leaflet） |
 
 Server 不在 `localhost:5000` 時，可在頁面上的「設定」修改 API Host，或加上網址參數 `map.html?api=http://127.0.0.1:5001/`。
+連不到 API Server 時，地圖會自動切換成展示模式（`client/static-api.js`），改讀 `data/youbike_stations.csv`。
 
 ## 自動化測試
 
@@ -119,6 +124,7 @@ pytest -v        # 46 項，不需要網路，也不需要先啟動 Server
 | `docs/openapi.yaml` | OpenAPI 3.0 規格 |
 | `docs/api_examples.md` | API 實測範例 |
 | `client/` | 網頁 Client：`index.html` API 管理介面、`map.html` 3D 城市視圖、`map2d.html` 平面地圖 |
+| `index.html`、`docs/index.html` | GitHub Pages 首頁與靜態版 Swagger UI |
 | `test_rest_server.py` | 46 項自動化測試 |
 | `curl_test.bat` | curl 測試腳本（Windows） |
 | `CLAUDE.md` | AI 輔助開發工具（Claude Code）的專案設定 |

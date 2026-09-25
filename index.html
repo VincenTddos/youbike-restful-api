@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<!-- index.html ~ GitHub Pages 首頁：作業展示入口 -->
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouBike Open Data API</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  :root {
+    --bg: #05080f; --card: rgba(16, 24, 40, .7); --line: rgba(148, 197, 255, .14); --text: #eaf2ff; --muted: #8b9ab3;
+    --brand: #ffb400; --brand-2: #ff6a00; --ret: #33c7ff; --ok: #2ee07a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; color: var(--text); background: var(--bg);
+    background-image: radial-gradient(ellipse 80% 60% at 70% -10%, rgba(255, 150, 0, .16), transparent 60%),
+                      radial-gradient(ellipse 60% 50% at 0% 100%, rgba(51, 199, 255, .12), transparent 60%);
+    font-family: "Inter", system-ui, "Segoe UI", "Microsoft JhengHei", "PingFang TC", sans-serif; font-size: 15px;
+  }
+  main { max-width: 980px; margin: 0 auto; padding: 56px 16px 48px; }
+  svg { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .logo { width: 56px; height: 56px; border-radius: 18px; display: grid; place-items: center; color: #1a0f00;
+          background: linear-gradient(135deg, var(--brand), var(--brand-2)); box-shadow: 0 10px 30px rgba(255, 120, 0, .4); }
+  .logo svg { width: 32px; height: 32px; }
+  .eyebrow { margin: 22px 0 6px; font: 500 12px "JetBrains Mono", monospace; letter-spacing: .2em; color: var(--brand); text-transform: uppercase; }
+  h1 { margin: 0; font-size: clamp(1.8rem, 5vw, 2.6rem); line-height: 1.2; font-weight: 800; }
+  .lead { color: var(--muted); max-width: 680px; line-height: 1.7; margin: 14px 0 0; }
+  .lead a { color: var(--text); }
+  .stats { display: flex; flex-wrap: wrap; gap: 10px; margin: 26px 0 34px; }
+  .stat { padding: 8px 14px; border: 1px solid var(--line); border-radius: 99px; background: var(--card); font-size: .85rem; color: var(--muted); }
+  .stat b { color: var(--text); font-family: "JetBrains Mono", monospace; margin-right: 4px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+  .card {
+    display: flex; flex-direction: column; gap: 8px; padding: 20px; border-radius: 20px; text-decoration: none; color: var(--text);
+    background: var(--card); border: 1px solid var(--line); backdrop-filter: blur(12px); transition: .2s;
+  }
+  .card:hover { transform: translateY(-3px); border-color: rgba(255, 180, 0, .5); box-shadow: 0 16px 40px rgba(0, 0, 0, .45); }
+  .card.hero { grid-column: 1 / -1; background: linear-gradient(135deg, rgba(255, 180, 0, .16), rgba(16, 24, 40, .7) 60%); }
+  .ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: rgba(148, 197, 255, .08); color: var(--brand); }
+  .ic svg { width: 22px; height: 22px; }
+  .card h2 { margin: 6px 0 0; font-size: 1.1rem; }
+  .card p { margin: 0; color: var(--muted); line-height: 1.6; font-size: .9rem; }
+  .card .go { margin-top: auto; padding-top: 6px; font-size: .85rem; color: var(--brand); font-weight: 600; }
+  .note { margin-top: 30px; padding: 18px 20px; border-radius: 16px; border: 1px solid var(--line); background: rgba(16, 24, 40, .5); color: var(--muted); line-height: 1.7; font-size: .9rem; }
+  .note b { color: var(--text); }
+  pre { margin: 10px 0 0; padding: 12px 14px; border-radius: 10px; background: #0a111f; border: 1px solid var(--line); color: #cfe0ff; overflow-x: auto; font: 13px/1.6 "JetBrains Mono", Consolas, monospace; }
+  footer { margin-top: 30px; color: var(--muted); font-size: .8rem; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <div class="logo"><svg viewBox="0 0 24 24"><circle cx="5.5" cy="17" r="3.5"/><circle cx="18.5" cy="17" r="3.5"/><path d="M5.5 17l4-8h5l4 8M9.5 9l3 8M14 5h2.5l-2 4"/></svg></div>
+  <p class="eyebrow">Open Data RESTful API · Python + Flask</p>
+  <h1>臺北市 YouBike 2.0 即時站點 API</h1>
+  <p class="lead">
+    以政府資料開放平臺 <a href="https://data.gov.tw/dataset/137993">YouBike2.0 臺北市公共自行車即時資訊</a> 為資料來源，
+    用 Flask 實作完整 CRUD 的 RESTful API，並提供 Swagger UI 線上文件、Python API Client 與網頁視覺化。
+  </p>
+  <div class="stats">
+    <span class="stat"><b>1,807</b>個站點</span>
+    <span class="stat"><b>12</b>個 API 端點</span>
+    <span class="stat"><b>46</b>項自動化測試</span>
+    <span class="stat"><b>60 秒</b>背景同步官方資料</span>
+  </div>
+
+  <div class="grid">
+    <a class="card hero" href="client/map.html">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 20V9M9 20V6M14 20V9M19 20V4M2 20h20"/></svg></div>
+      <h2>3D 城市視圖</h2>
+      <p>three.js 繪製全臺北 1,807 個站點：柱子高度 = 可借車輛（或可還空位），沒車的站地面紅色脈衝。可搜尋、看附近站點、一鍵 Google Maps 導航。</p>
+      <span class="go">開啟 3D 地圖 →</span>
+    </a>
+    <a class="card" href="client/map2d.html">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg></div>
+      <h2>平面地圖</h2>
+      <p>Leaflet 地圖版，站點分群顯示，適合手機查詢附近哪裡有車。</p>
+      <span class="go">開啟平面地圖 →</span>
+    </a>
+    <a class="card" href="docs/">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg></div>
+      <h2>API 文件（Swagger UI）</h2>
+      <p>OpenAPI 3.0 規格：每個端點的參數、Request / Response 格式與範例。</p>
+      <span class="go">查看 API 文件 →</span>
+    </a>
+    <a class="card" href="https://github.com/VincenTddos/youbike-restful-api/blob/main/docs/api_examples.md">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 17l6-6-6-6M12 19h8"/></svg></div>
+      <h2>API 實測範例</h2>
+      <p>Python API Client 實際呼叫 18 個請求：查詢 → 新增 → 修改 → 刪除 → 錯誤處理，含 Status Code 與 Output。</p>
+      <span class="go">查看實測紀錄 →</span>
+    </a>
+    <a class="card" href="https://github.com/VincenTddos/youbike-restful-api">
+      <div class="ic"><svg viewBox="0 0 24 24"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></div>
+      <h2>GitHub 原始碼</h2>
+      <p>Server、API Client、Open Data 資料檔、測試、README（環境建置與執行方式）。</p>
+      <span class="go">前往 GitHub →</span>
+    </a>
+  </div>
+
+  <div class="note">
+    <b>關於這個網頁：</b>GitHub Pages 只能放靜態網頁，無法執行 Flask Server，
+    所以這裡的地圖為<b>展示模式</b>，讀取 repo 內的 Open Data 資料檔（下載當下的快照）。
+    要看每分鐘更新的即時資料、使用 CRUD 與 Swagger 的「Try it out」，請在本機啟動 Server：
+    <pre>git clone https://github.com/VincenTddos/youbike-restful-api.git
+cd youbike-restful-api
+pip install -r requirements.txt
+python rest_server.py          # 之後開啟 http://127.0.0.1:5000/docs
+python api_client.py demo      # 另開視窗：Python API Client 實測</pre>
+  </div>
+
+  <footer>資料來源：臺北市政府 YouBike2.0 開放資料（data.gov.tw） · 物聯網應用課程作業</footer>
+</main>
+</body>
+</html>
